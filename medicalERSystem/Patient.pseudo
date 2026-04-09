@@ -1,0 +1,15 @@
+CLASS Patient
+    PROPERTY triage
+    PROPERTY name
+    PROPERTY treatmentTime
+
+    CONSTRUCTOR(triage, name, treatmentTime)
+        SET this.triage = triage
+        SET this.name = name
+        SET this.treatmentTime = treatmentTime
+    END CONSTRUCTOR
+
+    METHOD toString()
+        RETURN "(" + name + ", L" + triage + ", " + treatmentTime + ")"
+    END METHOD
+END CLASS

@@ -1,0 +1,250 @@
+CLASS ERSimulation
+    VARIABLE isRunning = true
+    VARIABLE scanner = new InputScanner()
+
+    METHOD run()
+        PRINT "Welcome to the Medical ER System! Do you want to start the simulation? (Y/N): "
+
+        WHILE isRunning
+            input = scanner.readLine()
+
+            IF input equalsIgnoreCase "y" THEN
+                DECLARE tempmin = "minute"
+                DECLARE noPatient = false
+                DECLARE triageValid = false
+                DECLARE treatmentTimeValid = false
+                DECLARE nameValid = false
+                DECLARE availableDoc = false
+                DECLARE numberOfDoctors = 0
+                DECLARE numberOfMinutes = 0
+                DECLARE triageLevel = 0
+                DECLARE patientName = ""
+                DECLARE treatmentTime = 0
+                DECLARE patientCount = 0
+                DECLARE patientServed = 0
+                DECLARE maxQueueLength = 0
+                DECLARE averageQueueLength = 0.0
+
+                PRINT "... Setting up the ER system simulation ..."
+
+                LOOP UNTIL numberOfMinutes >= 1
+                    TRY
+                        PRINT "Please enter the number of minutes( 1 minute per round ) to simulate: "
+                        numberOfMinutes = scanner.readInt()
+
+                        IF numberOfMinutes < 1 THEN
+                            RAISE InvalidInputException("Invalid input. Please enter a valid number for the number of minutes.")
+                        ELSE IF numberOfMinutes > 30 THEN
+                            PRINT "Warning: Simulating with a large number of minutes may lead to a very long simulation time or errors. Please consider using a smaller number of minutes for a more manageable simulation. Maximum recommended minutes is 30."
+                            numberOfMinutes = 0
+                        END IF
+                    CATCH InvalidInputException OR InputMismatchException
+                        PRINT "Invalid input. Please enter a valid number for the number of minutes."
+                        scanner.clearLine()
+                    END TRY
+                END LOOP
+
+                LOOP UNTIL numberOfDoctors >= 1
+                    TRY
+                        PRINT "Please enter the number of doctors to simulate: "
+                        numberOfDoctors = scanner.readInt()
+
+                        IF numberOfDoctors < 1 THEN
+                            RAISE InvalidInputException("Invalid input. Please enter a valid number for the number of doctors.")
+                        ELSE IF numberOfDoctors > 10 THEN
+                            PRINT "Warning: Simulating with a large number of doctors may lead to a very long simulation time or errors. Please consider using a smaller number of doctors for a more manageable simulation. Max number of doctors is set to 10."
+                            numberOfDoctors = 0
+                        END IF
+                    CATCH InvalidInputException OR InputMismatchException
+                        PRINT "Invalid input. Please enter a valid number for the number of doctors."
+                        scanner.clearLine()
+                    END TRY
+                END LOOP
+
+                DECLARE doctors = new IntegerArray[numberOfDoctors]
+                FOR i FROM 0 TO numberOfDoctors - 1
+                    doctors[i] = 0
+                END FOR
+
+                PRINT "... Starting the simulation..."
+                DECLARE patientQueue = new ListQueue()
+
+                FOR minuteCount FROM 1 TO numberOfMinutes
+                    PRINT "At the beginning of iteration " + minuteCount + " ..."
+
+                    WHILE NOT triageValid
+                        TRY
+                            PRINT "Input triage level for a new patient [1-Critical, 2- Urgent, 3-Fair, 0-None]: "
+                            triageLevel = scanner.readInt()
+
+                            IF triageLevel < 0 OR triageLevel > 3 THEN
+                                RAISE InvalidInputException("Invalid triage level. Please enter a number between 0 and 3.")
+                            ELSE IF triageLevel == 0 THEN
+                                PRINT "No patient to came to ER in this minute."
+                                noPatient = true
+                                BREAK
+                            ELSE
+                                triageValid = true
+                            END IF
+                        CATCH InvalidInputException
+                            PRINT error.message
+                            scanner.clearLine()
+                        CATCH InputMismatchException
+                            PRINT "Invalid input. Please enter a number between 0 and 3 for the triage level."
+                            scanner.clearLine()
+                        END TRY
+                    END WHILE
+
+                    IF NOT noPatient THEN
+                        WHILE NOT nameValid
+                            TRY
+                                PRINT "Input patient name: "
+                                patientName = scanner.readLine().trim()
+                                nameValid = matchesNamePattern(patientName)
+                                IF NOT nameValid THEN
+                                    RAISE InvalidInputException("Invalid input. Please enter a valid patient name.")
+                                END IF
+                            CATCH InvalidInputException
+                                PRINT error.message
+                            END TRY
+                        END WHILE
+
+                        WHILE NOT treatmentTimeValid
+                            TRY
+                                PRINT "Input treatment time (min): "
+                                treatmentTime = scanner.readInt()
+                                IF treatmentTime < 1 THEN
+                                    RAISE InvalidInputException("Invalid treatment time. Please enter a positive number.")
+                                ELSE
+                                    treatmentTimeValid = true
+                                END IF
+                            CATCH InvalidInputException
+                                PRINT error.message
+                                scanner.clearLine()
+                            CATCH InputMismatchException
+                                PRINT "Invalid input. Please enter a positive number for the treatment time."
+                                scanner.clearLine()
+                            END TRY
+                        END WHILE
+
+                        patientCount = patientCount + 1
+                        DECLARE patient = new Patient(triageLevel, patientName, treatmentTime)
+
+                        IF triageLevel == 3 OR patientQueue.isEmpty() THEN
+                            patientQueue.addToTail(patient)
+                        ELSE
+                            insert(patientQueue, patient, triageLevel)
+                        END IF
+
+                        PRINT "Patient " + patient.name + " with triage level " + patient.triage + " and treatment time " + patient.treatmentTime + " minutes added to the queue."
+                    END IF
+
+                    FOR j FROM 0 TO numberOfDoctors - 1
+                        IF doctors[j] <= minuteCount AND NOT patientQueue.isEmpty() THEN
+                            DECLARE patient = patientQueue.dequeue()
+                            DECLARE treatmentTimeLeft = patient.treatmentTime
+                            doctors[j] = minuteCount + treatmentTimeLeft
+                            PRINT "Doctor " + (j + 1) + " starts treating patient " + patient.name + " with triage level " + patient.triage + " for " + treatmentTimeLeft + " minutes."
+                            patientServed = patientServed + 1
+                        ELSE IF doctors[j] <= minuteCount AND patientQueue.isEmpty() THEN
+                            PRINT "Doctor " + (j + 1) + " is available but no patients are waiting."
+                            availableDoc = true
+                        END IF
+                    END FOR
+
+                    IF availableDoc == false AND NOT patientQueue.isEmpty() THEN
+                        PRINT "No available doctor to treat patients at this time."
+                    ELSE
+                        availableDoc = false
+                    END IF
+
+                    IF numberOfMinutes == 1 THEN
+                        tempmin = "minute"
+                    ELSE
+                        tempmin = "minutes"
+                    END IF
+
+                    PRINT "After " + minuteCount + " " + tempmin + " ##"
+                    FOR j FROM 0 TO numberOfDoctors - 1
+                        IF doctors[j] <= minuteCount THEN
+                            PRINT "----- Doctor " + (j + 1) + " Available [ " + doctors[j] + " ] "
+                        ELSE
+                            PRINT "----- Doctor " + (j + 1) + " Busy until minute [ " + doctors[j] + " ] "
+                        END IF
+
+                        IF j == numberOfDoctors - 1 THEN
+                            PRINT "----- The Queue has " + patientQueue.count() + " patient(s) waiting: " + patientQueue.toString()
+                            averageQueueLength = averageQueueLength + patientQueue.count()
+                        END IF
+                    END FOR
+
+                    IF patientQueue.count() > maxQueueLength THEN
+                        maxQueueLength = patientQueue.count()
+                    END IF
+
+                    noPatient = false
+                    triageValid = false
+                    treatmentTimeValid = false
+                    nameValid = false
+                END FOR
+
+                PRINT "............. End of Simulation ............."
+                PRINT "Total " + tempmin + " simulated: " + numberOfMinutes
+                PRINT "Number of doctors: " + numberOfDoctors
+                PRINT "Number of patients arrived: " + patientCount
+                PRINT "Number of patients served: " + patientServed
+                PRINT "Number of patients still waiting: " + patientQueue.count()
+                averageQueueLength = averageQueueLength / numberOfMinutes
+                PRINT "Average queue length during the simulation: " + formatDecimal(averageQueueLength, 2)
+                PRINT "Maximum queue length during the simulation: " + maxQueueLength
+
+                PRINT "Simulation ended. Would you like to run it again? (Y/N)"
+                WHILE true
+                    input = scanner.readLine()
+                    IF input equalsIgnoreCase "y" THEN
+                        BREAK
+                    ELSE IF input equalsIgnoreCase "n" THEN
+                        isRunning = false
+                        BREAK
+                    ELSE
+                        PRINT "Invalid input. Do you want to restart the simulation? Please enter 'Y' or 'N'."
+                    END IF
+                END WHILE
+            ELSE IF input equalsIgnoreCase "n" THEN
+                isRunning = false
+            ELSE
+                PRINT "Invalid input. Do you want to start the simulation? Please enter 'Y' or 'N'."
+            END IF
+        END WHILE
+
+        PRINT "Thank you for using the Medical ER System. Goodbye!"
+        scanner.close()
+    END METHOD
+
+    METHOD insert(queue, item, priority)
+        IF queue.isEmpty() THEN
+            queue.addToHead(item)
+            RETURN
+        END IF
+
+        DECLARE current = queue.getHead()
+        DECLARE previous = null
+
+        WHILE current IS NOT null
+            DECLARE currentPatient = current.getData()
+            IF currentPatient.triage > priority THEN
+                DECLARE newNode = new ListNode(item, current)
+                IF previous IS null THEN
+                    queue.setHead(newNode)
+                ELSE
+                    previous.setNext(newNode)
+                END IF
+                RETURN
+            END IF
+            previous = current
+            current = current.getNext()
+        END WHILE
+
+        queue.addToTail(item)
+    END METHOD
+END CLASS

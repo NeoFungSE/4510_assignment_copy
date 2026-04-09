@@ -1,0 +1,5 @@
+CLASS InvalidInputException EXTENDS InputMismatchException
+    CONSTRUCTOR(message)
+        CALL super(message)
+    END CONSTRUCTOR
+END CLASS
